@@ -2,15 +2,10 @@ package com.fsck.k9.controller.push
 
 import com.fsck.k9.Account
 import com.fsck.k9.Account.FolderMode
+import com.fsck.k9.AccountsChangeListener
 import com.fsck.k9.backend.BackendManager
 import com.fsck.k9.network.ConnectivityChangeListener
 import com.fsck.k9.network.ConnectivityManager
-import com.fsck.k9.notification.PushNotificationManager
-import com.fsck.k9.notification.PushNotificationState
-import com.fsck.k9.notification.PushNotificationState.ALARM_PERMISSION_MISSING
-import com.fsck.k9.notification.PushNotificationState.LISTENING
-import com.fsck.k9.notification.PushNotificationState.WAIT_BACKGROUND_SYNC
-import com.fsck.k9.notification.PushNotificationState.WAIT_NETWORK
 import com.fsck.k9.preferences.AccountManager
 import com.fsck.k9.preferences.BackgroundSync
 import com.fsck.k9.preferences.GeneralSettingsManager
@@ -37,10 +32,9 @@ class PushController internal constructor(
     private val pushServiceManager: PushServiceManager,
     private val bootCompleteManager: BootCompleteManager,
     private val autoSyncManager: AutoSyncManager,
-    private val alarmPermissionManager: AlarmPermissionManager,
-    private val pushNotificationManager: PushNotificationManager,
     private val connectivityManager: ConnectivityManager,
     private val accountPushControllerFactory: AccountPushControllerFactory,
+    private val backgroundPermissionManager: BackgroundPermissionManager,
     private val coroutineScope: CoroutineScope = GlobalScope,
     private val coroutineDispatcher: CoroutineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher(),
 ) {
@@ -49,11 +43,11 @@ class PushController internal constructor(
     private val pushers = mutableMapOf<String, AccountPushController>()
 
     private val autoSyncListener = AutoSyncListener(::onAutoSyncChanged)
+    private val accountsChangeListener = AccountsChangeListener(::onAccountsChanged)
     private val connectivityChangeListener = object : ConnectivityChangeListener {
         override fun onConnectivityChanged() = this@PushController.onConnectivityChanged()
         override fun onConnectivityLost() = this@PushController.onConnectivityLost()
     }
-    private val alarmPermissionListener = AlarmPermissionListener(::onAlarmPermissionGranted)
 
     /**
      * Initialize [PushController].
@@ -74,21 +68,31 @@ class PushController internal constructor(
         }
     }
 
-    fun disablePush() {
+    private fun disablePush() {
         Timber.v("PushController.disablePush()")
 
-        coroutineScope.launch(coroutineDispatcher) {
+        try {
+            accountManager.removeOnAccountsChangeListener(accountsChangeListener)
             for (account in accountManager.getAccounts()) {
                 account.folderPushMode = FolderMode.NONE
                 accountManager.saveAccount(account)
             }
+        } finally {
+            accountManager.addOnAccountsChangeListener(accountsChangeListener)
+        }
+    }
+
+    private fun checkBackgroundPermissionRevoked() {
+        if (!backgroundPermissionManager.canRunBackgroundServices()) {
+            // User revoked permission, disable push on all accounts
+            disablePush()
         }
     }
 
     private fun initInBackground() {
         Timber.v("PushController.initInBackground()")
 
-        accountManager.addOnAccountsChangeListener(::onAccountsChanged)
+        accountManager.addOnAccountsChangeListener(accountsChangeListener)
         listenForBackgroundSyncChanges()
         backendManager.addListener(::onBackendChanged)
 
@@ -110,10 +114,6 @@ class PushController internal constructor(
     }
 
     private fun onAutoSyncChanged() {
-        launchUpdatePushers()
-    }
-
-    private fun onAlarmPermissionGranted() {
         launchUpdatePushers()
     }
 
@@ -154,9 +154,10 @@ class PushController internal constructor(
     private fun updatePushers() {
         Timber.v("PushController.updatePushers()")
 
+        checkBackgroundPermissionRevoked()
+
         val generalSettings = generalSettingsManager.getSettings()
 
-        val alarmPermissionMissing = !alarmPermissionManager.canScheduleExactAlarms()
         val backgroundSyncDisabledViaSystem = autoSyncManager.isAutoSyncDisabled
         val backgroundSyncDisabledInApp = generalSettings.backgroundSync == BackgroundSync.NEVER
         val networkNotAvailable = !connectivityManager.isNetworkAvailable()
@@ -164,8 +165,7 @@ class PushController internal constructor(
 
         val shouldDisablePushAccounts = backgroundSyncDisabledViaSystem ||
             backgroundSyncDisabledInApp ||
-            networkNotAvailable ||
-            alarmPermissionMissing
+            networkNotAvailable
 
         val pushAccounts = if (shouldDisablePushAccounts) {
             emptyList()
@@ -208,22 +208,14 @@ class PushController internal constructor(
             }
 
             backgroundSyncDisabledViaSystem -> {
-                setPushNotificationState(WAIT_BACKGROUND_SYNC)
                 startServices()
             }
 
             networkNotAvailable -> {
-                setPushNotificationState(WAIT_NETWORK)
-                startServices()
-            }
-
-            alarmPermissionMissing -> {
-                setPushNotificationState(ALARM_PERMISSION_MISSING)
                 startServices()
             }
 
             arePushersActive -> {
-                setPushNotificationState(LISTENING)
                 startServices()
             }
 
@@ -239,16 +231,11 @@ class PushController internal constructor(
         }
     }
 
-    private fun setPushNotificationState(notificationState: PushNotificationState) {
-        pushNotificationManager.notificationState = notificationState
-    }
-
     private fun startServices() {
         pushServiceManager.start()
         bootCompleteManager.enableReceiver()
         registerAutoSyncListener()
         registerConnectivityChangeListener()
-        registerAlarmPermissionListener()
         connectivityManager.start()
     }
 
@@ -257,7 +244,6 @@ class PushController internal constructor(
         bootCompleteManager.disableReceiver()
         autoSyncManager.unregisterListener()
         unregisterConnectivityChangeListener()
-        alarmPermissionManager.unregisterListener()
         connectivityManager.stop()
     }
 
@@ -275,11 +261,5 @@ class PushController internal constructor(
 
     private fun unregisterConnectivityChangeListener() {
         connectivityManager.removeListener(connectivityChangeListener)
-    }
-
-    private fun registerAlarmPermissionListener() {
-        if (!alarmPermissionManager.canScheduleExactAlarms()) {
-            alarmPermissionManager.registerListener(alarmPermissionListener)
-        }
     }
 }

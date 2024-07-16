@@ -2,12 +2,15 @@ package com.fsck.k9.ui.settings.account
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.core.net.toUri
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -20,6 +23,7 @@ import com.fsck.k9.account.BackgroundAccountRemover
 import com.fsck.k9.activity.ManageIdentities
 import com.fsck.k9.activity.setup.AccountSetupComposition
 import com.fsck.k9.controller.MessagingController
+import com.fsck.k9.controller.push.BackgroundPermissionManager
 import com.fsck.k9.crypto.OpenPgpApiHelper
 import com.fsck.k9.fragment.ConfirmationDialogFragment
 import com.fsck.k9.fragment.ConfirmationDialogFragment.ConfirmationDialogFragmentListener
@@ -54,6 +58,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
     private val notificationSettingsUpdater: NotificationSettingsUpdater by inject()
     private val vibrator: Vibrator by inject()
     private val appNameProvider: AppNameProvider by inject()
+    private val backgroundPermissionManager: BackgroundPermissionManager by inject()
 
     private lateinit var dataStore: AccountSettingsDataStore
 
@@ -200,6 +205,29 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         if (!messagingController.isPushCapable(account)) {
             findPreference<Preference>(PREFERENCE_PUSH_MODE)?.remove()
             findPreference<Preference>(PREFERENCE_ADVANCED_PUSH_SETTINGS)?.remove()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            (findPreference<Preference>(PREFERENCE_PUSH_MODE) as? ListPreference)?.let { preference ->
+                var pendingSelectedPreferenceValue: String? = null
+                val resultHandler = registerForActivityResult(StartActivityForResult()) {
+                    if (backgroundPermissionManager.canRunBackgroundServices()) {
+                        preference.value = pendingSelectedPreferenceValue
+                    }
+                }
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${requireContext().packageName}")
+                }
+                preference.setOnPreferenceChangeListener { _, newValue ->
+                    if (newValue != Account.FolderMode.NONE.name &&
+                        !backgroundPermissionManager.canRunBackgroundServices()
+                    ) {
+                        pendingSelectedPreferenceValue = newValue as String
+                        resultHandler.launch(intent)
+                        false
+                    } else {
+                        true
+                    }
+                }
+            }
         }
     }
 

@@ -6,6 +6,7 @@ internal val controllerPushModule = module {
     single { PushServiceManager(context = get()) }
     single { BootCompleteManager(context = get()) }
     single { AutoSyncManager(context = get()) }
+    single { BackgroundPermissionManager(context = get()) }
     single {
         AccountPushControllerFactory(
             backendManager = get(),
@@ -22,12 +23,9 @@ internal val controllerPushModule = module {
             pushServiceManager = get(),
             bootCompleteManager = get(),
             autoSyncManager = get(),
-            alarmPermissionManager = get(),
-            pushNotificationManager = get(),
             connectivityManager = get(),
             accountPushControllerFactory = get(),
+            backgroundPermissionManager = get(),
         )
     }
-
-    single<AlarmPermissionManager> { AlarmPermissionManager(context = get(), alarmManager = get()) }
 }

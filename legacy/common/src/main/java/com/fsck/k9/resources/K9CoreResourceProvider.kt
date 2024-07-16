@@ -4,7 +4,6 @@ import android.content.Context
 import app.k9mail.core.common.provider.AppNameProvider
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import com.fsck.k9.CoreResourceProvider
-import com.fsck.k9.notification.PushNotificationState
 import com.fsck.k9.ui.R
 
 class K9CoreResourceProvider(
@@ -39,22 +38,4 @@ class K9CoreResourceProvider(
     override fun searchUnifiedInboxDetail(): String = context.getString(R.string.integrated_inbox_detail)
 
     override fun outboxFolderName(): String = context.getString(R.string.special_mailbox_name_outbox)
-
-    override val iconPushNotification: Int = Icons.Outlined.Notifications
-
-    override fun pushNotificationText(notificationState: PushNotificationState): String {
-        val resId = when (notificationState) {
-            PushNotificationState.INITIALIZING -> R.string.push_notification_state_initializing
-            PushNotificationState.LISTENING -> R.string.push_notification_state_listening
-            PushNotificationState.WAIT_BACKGROUND_SYNC -> R.string.push_notification_state_wait_background_sync
-            PushNotificationState.WAIT_NETWORK -> R.string.push_notification_state_wait_network
-            PushNotificationState.ALARM_PERMISSION_MISSING -> R.string.push_notification_state_alarm_permission_missing
-        }
-        return context.getString(resId)
-    }
-
-    override fun pushNotificationInfoText(): String = context.getString(R.string.push_notification_info)
-
-    override fun pushNotificationGrantAlarmPermissionText(): String =
-        context.getString(R.string.push_notification_grant_alarm_permission)
 }
