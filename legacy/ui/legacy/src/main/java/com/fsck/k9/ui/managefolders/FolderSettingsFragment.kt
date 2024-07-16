@@ -1,13 +1,20 @@
 package com.fsck.k9.ui.managefolders
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.navigation.fragment.findNavController
 import androidx.preference.Preference
+import androidx.preference.SwitchPreference
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
+import com.fsck.k9.controller.push.BackgroundPermissionManager
 import com.fsck.k9.fragment.ConfirmationDialogFragment
 import com.fsck.k9.fragment.ConfirmationDialogFragment.ConfirmationDialogFragmentListener
 import com.fsck.k9.ui.R
@@ -20,6 +27,11 @@ import com.fsck.k9.ui.base.R as BaseR
 class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFragmentListener {
     private val viewModel: FolderSettingsViewModel by viewModel()
     private val folderNameFormatter: FolderNameFormatter by inject()
+    private val backgroundPermissionManager: BackgroundPermissionManager by inject()
+
+    private val backgroundPermissionRequestLauncher = registerForActivityResult(StartActivityForResult()) {
+        onBackgroundPermissionRequestResult()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +90,7 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
         setCategoryTitle(folderSettings)
         updateMenu()
         setPreferenceVisibility(folderSettings)
+        initializePushPreference()
     }
 
     private fun updateMenu() {
@@ -112,6 +125,28 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
             requirePreference<Preference>(PREFERENCE_SYNC).isVisible = false
             requirePreference<Preference>(PREFERENCE_PUSH).isVisible = false
             requirePreference<Preference>(PREFERENCE_NOTIFICATIONS).isVisible = false
+        }
+    }
+
+    private fun initializePushPreference() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val backgroundPermissionRequest = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${requireContext().packageName}")
+            }
+            requirePreference<SwitchPreference>(PREFERENCE_PUSH).setOnPreferenceChangeListener { _, newValue ->
+                if (newValue == true && !backgroundPermissionManager.canRunBackgroundServices()) {
+                    backgroundPermissionRequestLauncher.launch(backgroundPermissionRequest)
+                    false
+                } else {
+                    true
+                }
+            }
+        }
+    }
+
+    private fun onBackgroundPermissionRequestResult() {
+        if (backgroundPermissionManager.canRunBackgroundServices()) {
+            requirePreference<SwitchPreference>(PREFERENCE_PUSH).isChecked = true
         }
     }
 

@@ -102,14 +102,6 @@ val coreNotificationModule = module {
     }
     factory { LockScreenNotificationCreator(notificationHelper = get(), resourceProvider = get()) }
     single {
-        PushNotificationManager(
-            context = get(),
-            resourceProvider = get(),
-            notificationChannelManager = get(),
-            notificationManager = get(),
-        )
-    }
-    single {
         NotificationRepository(
             notificationStoreProvider = get(),
             localStoreProvider = get(),

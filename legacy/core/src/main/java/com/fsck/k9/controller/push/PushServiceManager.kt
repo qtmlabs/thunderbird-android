@@ -2,7 +2,6 @@ package com.fsck.k9.controller.push
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import java.util.concurrent.atomic.AtomicBoolean
 import timber.log.Timber
 
@@ -43,11 +42,7 @@ internal class PushServiceManager(private val context: Context) {
     private fun startService() {
         try {
             val intent = Intent(context, PushService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startService(intent)
         } catch (e: Exception) {
             Timber.e(e, "Exception while trying to start PushService")
         }
