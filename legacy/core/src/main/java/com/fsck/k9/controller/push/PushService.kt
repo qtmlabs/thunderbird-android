@@ -2,6 +2,7 @@ package com.fsck.k9.controller.push
 
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import org.koin.android.ext.android.inject
 import timber.log.Timber
@@ -30,6 +31,17 @@ class PushService : Service() {
         notifyServiceStarted()
 
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent) {
+        Timber.v("PushService.onTaskRemoved(%s)", rootIntent)
+        super.onTaskRemoved(rootIntent)
+
+        // Workaround for Android 14 bug: https://github.com/androidx/media/issues/805
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            initializePushController()
+            notifyServiceStarted()
+        }
     }
 
     override fun onDestroy() {
