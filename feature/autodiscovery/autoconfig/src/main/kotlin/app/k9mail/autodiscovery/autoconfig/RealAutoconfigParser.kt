@@ -100,14 +100,6 @@ private class ClientConfigParser(
         val incomingServerSettings = mutableListOf<IncomingServerSettings>()
         val outgoingServerSettings = mutableListOf<OutgoingServerSettings>()
 
-        // The 'id' attribute is required (but not really used) by Thunderbird desktop.
-        val emailProviderId = pullParser.getAttributeValue(null, "id")
-        if (emailProviderId == null) {
-            parserError("Missing 'emailProvider.id' attribute")
-        } else if (!emailProviderId.isValidHostname()) {
-            parserError("Invalid 'emailProvider.id' attribute")
-        }
-
         readElement { eventType ->
             if (eventType == XmlPullParser.START_TAG) {
                 when (pullParser.name) {
