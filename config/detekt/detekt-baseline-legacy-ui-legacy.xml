@@ -107,7 +107,6 @@
     <ID>SwallowedException:MessageViewContainerFragment.kt$MessageViewContainerFragment$e: ClassCastException</ID>
     <ID>SwallowedException:MessageViewFragment.kt$MessageViewFragment$e: ActivityNotFoundException</ID>
     <ID>SwallowedException:MessageViewFragment.kt$MessageViewFragment$e: ClassCastException</ID>
-    <ID>SwallowedException:PushInfoFragment.kt$PushInfoFragment$e: ActivityNotFoundException</ID>
     <ID>SwallowedException:SettingsListFragment.kt$SettingsListFragment$e: ActivityNotFoundException</ID>
     <ID>TooGenericExceptionCaught:AccountRemover.kt$AccountRemover$e: Exception</ID>
     <ID>TooGenericExceptionCaught:AutocryptSetupTransferLiveEvent.kt$AutocryptSetupTransferLiveEvent$e: Exception</ID>

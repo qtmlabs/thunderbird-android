@@ -1,12 +1,8 @@
 package com.fsck.k9.controller.push
 
-import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.os.Build
 import android.os.IBinder
-import com.fsck.k9.notification.PushNotificationManager
 import org.koin.android.ext.android.inject
 import timber.log.Timber
 
@@ -15,7 +11,6 @@ import timber.log.Timber
  */
 class PushService : Service() {
     private val pushServiceManager: PushServiceManager by inject()
-    private val pushNotificationManager: PushNotificationManager by inject()
     private val pushController: PushController by inject()
 
     override fun onCreate() {
@@ -29,10 +24,7 @@ class PushService : Service() {
 
         val isAutomaticRestart = intent == null
         if (isAutomaticRestart) {
-            maybeStartForeground()
             initializePushController()
-        } else {
-            startForeground()
         }
 
         notifyServiceStarted()
@@ -42,35 +34,8 @@ class PushService : Service() {
 
     override fun onDestroy() {
         Timber.v("PushService.onDestroy()")
-        pushNotificationManager.setForegroundServiceStopped()
         notifyServiceStopped()
         super.onDestroy()
-    }
-
-    private fun maybeStartForeground() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            startForeground()
-        } else {
-            try {
-                startForeground()
-            } catch (e: ForegroundServiceStartNotAllowedException) {
-                Timber.e(e, "Ignoring ForegroundServiceStartNotAllowedException during automatic restart.")
-
-                // This works around what seems to be a bug in at least Android 14.
-                // See https://github.com/thunderbird/thunderbird-android/issues/7416 for more details.
-            }
-        }
-    }
-
-    private fun startForeground() {
-        val notificationId = pushNotificationManager.notificationId
-        val notification = pushNotificationManager.createForegroundNotification()
-
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(notificationId, notification)
-        }
     }
 
     private fun notifyServiceStarted() {

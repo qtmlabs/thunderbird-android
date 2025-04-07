@@ -27,9 +27,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        tools:ignore="ProtectedPermissions"
-        />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowTaskReparenting="false"
@@ -207,19 +205,6 @@
             android:label="@string/changelog_recent_changes_title"
             />
 
-        <activity
-            android:name="com.fsck.k9.ui.push.PushInfoActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:label="@string/push_info_title"
-            android:taskAffinity="${applicationId}.push_info"
-            >
-            <intent-filter>
-                <action android:name="app.k9mail.action.PUSH_INFO" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-
         <!-- This component is disabled by default. It will be enabled programmatically if necessary. -->
         <receiver
             android:name="com.fsck.k9.controller.push.BootCompleteReceiver"
@@ -242,7 +227,6 @@
         <service
             android:name="com.fsck.k9.controller.push.PushService"
             android:exported="false"
-            android:foregroundServiceType="dataSync"
             />
 
         <provider
