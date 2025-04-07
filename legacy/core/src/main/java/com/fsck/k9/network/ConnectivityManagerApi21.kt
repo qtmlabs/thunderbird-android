@@ -1,44 +1,61 @@
 package com.fsck.k9.network
 
 import android.net.ConnectivityManager.NetworkCallback
+import android.net.LinkProperties
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import timber.log.Timber
 import android.net.ConnectivityManager as SystemConnectivityManager
 
-@Suppress("DEPRECATION")
 internal class ConnectivityManagerApi21(
     private val systemConnectivityManager: SystemConnectivityManager,
 ) : ConnectivityManagerBase() {
     private var isRunning = false
-    private var lastNetworkType: Int? = null
-    private var wasConnected: Boolean? = null
+    private var isConnectivityAvailable = false
+    private var linkProperties: LinkProperties? = null
 
     private val networkCallback = object : NetworkCallback() {
-        override fun onAvailable(network: Network) {
-            Timber.v("Network available: $network")
-            notifyIfConnectivityHasChanged()
+        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            Timber.v("Network capabilities changed: $network: $networkCapabilities")
+            synchronized(this@ConnectivityManagerApi21) {
+                val lastConnectivityAvailable = isConnectivityAvailable
+
+                isConnectivityAvailable = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+
+                if (isConnectivityAvailable == lastConnectivityAvailable) return
+
+                if (isConnectivityAvailable) {
+                    notifyOnConnectivityChanged()
+                } else {
+                    notifyOnConnectivityLost()
+                }
+            }
+        }
+
+        override fun onLinkPropertiesChanged(network: Network, newLinkProperties: LinkProperties) {
+            Timber.v("Network link properties changed: $network: $newLinkProperties")
+            synchronized(this@ConnectivityManagerApi21) {
+                val lastLinkProperties = linkProperties
+
+                linkProperties = newLinkProperties
+
+                if (lastLinkProperties !== null &&
+                    lastLinkProperties.linkAddresses != newLinkProperties.linkAddresses &&
+                    isConnectivityAvailable
+                ) {
+                    notifyOnConnectivityChanged()
+                }
+            }
         }
 
         override fun onLost(network: Network) {
             Timber.v("Network lost: $network")
-            notifyIfConnectivityHasChanged()
-        }
-
-        private fun notifyIfConnectivityHasChanged() {
-            val networkType = systemConnectivityManager.activeNetworkInfo?.type
-            val isConnected = isNetworkAvailable()
-
             synchronized(this@ConnectivityManagerApi21) {
-                if (networkType != lastNetworkType || isConnected != wasConnected) {
-                    lastNetworkType = networkType
-                    wasConnected = isConnected
-                    if (isConnected) {
-                        notifyOnConnectivityChanged()
-                    } else {
-                        notifyOnConnectivityLost()
-                    }
-                }
+                isConnectivityAvailable = false
+                linkProperties = null
+
+                notifyOnConnectivityLost()
             }
         }
     }
@@ -47,9 +64,14 @@ internal class ConnectivityManagerApi21(
     override fun start() {
         if (!isRunning) {
             isRunning = true
+            isConnectivityAvailable = false
+            linkProperties = null
 
-            val networkRequest = NetworkRequest.Builder().build()
-            systemConnectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+            val networkRequest = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build()
+            systemConnectivityManager.requestNetwork(networkRequest, networkCallback)
         }
     }
 
@@ -62,5 +84,8 @@ internal class ConnectivityManagerApi21(
         }
     }
 
-    override fun isNetworkAvailable(): Boolean = systemConnectivityManager.activeNetworkInfo?.isConnected == true
+    @Synchronized
+    override fun isNetworkAvailable(): Boolean {
+        return isConnectivityAvailable
+    }
 }
